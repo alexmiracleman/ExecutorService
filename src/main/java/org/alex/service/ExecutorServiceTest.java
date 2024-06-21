@@ -1,0 +1,21 @@
+package org.alex.service;
+
+
+public class ExecutorServiceTest {
+
+    static MyFixedThreadPool executorService = new MyFixedThreadPool(2);
+
+    public static void main(String[] args) {
+        Runnable runnable = () -> {
+            System.out.println("Thread name: " + Thread.currentThread().getName());
+        };
+
+        for (int i = 0; i < 3; i++) {
+            executorService.execute(runnable);
+        }
+
+        System.out.println("Finished");
+
+        executorService.shutdown();
+    }
+}
