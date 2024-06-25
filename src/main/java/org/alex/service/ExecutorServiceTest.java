@@ -5,12 +5,12 @@ public class ExecutorServiceTest {
 
     static MyFixedThreadPool executorService = new MyFixedThreadPool(2);
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         Runnable runnable = () -> {
             System.out.println("Thread name: " + Thread.currentThread().getName());
         };
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 30; i++) {
             executorService.execute(runnable);
         }
 
