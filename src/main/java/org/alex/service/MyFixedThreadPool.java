@@ -5,11 +5,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+
 public class MyFixedThreadPool {
 
-    private volatile boolean isShuttingDown;
+    private static volatile boolean isShuttingDown;
 
     private final Queue<Runnable> tasks = new LinkedBlockingQueue<>();
+
 
     public MyFixedThreadPool(int threadsCount) {
         for (int i = 0; i < threadsCount; i++) {
@@ -41,8 +43,6 @@ public class MyFixedThreadPool {
 
         private final Queue<Runnable> tasks;
 
-        private final AtomicBoolean active = new AtomicBoolean(true);
-
         public TaskExecutor(Queue<Runnable> tasks) {
             this.tasks = tasks;
         }
@@ -50,20 +50,33 @@ public class MyFixedThreadPool {
         @Override
         public void run() {
             synchronized (tasks) {
-                while (active.get()) {
-                    if (tasks.isEmpty()) {
+                while (true) {
+                    if (!isShuttingDown && !tasks.isEmpty()) {
+                        Runnable task = tasks.poll();
+                        if (task != null) {
+                            task.run();
+                        }
+                    }
+                    if (!isShuttingDown && tasks.isEmpty()) {
                         try {
-                            tasks.wait(1000);
+                            tasks.wait();
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
-                    }
-                    Runnable task = tasks.poll();
-                    if (task != null) {
+                        Runnable task = tasks.poll();
+                        if(task != null) {
                         task.run();
+                        }
                     }
-                    if (task == null) {
-                        active.set(false);
+                    if (isShuttingDown && !tasks.isEmpty()) {
+                        Runnable task = tasks.poll();
+                        if (task != null) {
+                            task.run();
+                        }
+                    }
+                    if (isShuttingDown && tasks.isEmpty()) {
+                        tasks.notifyAll();
+                        break;
                     }
                 }
             }
