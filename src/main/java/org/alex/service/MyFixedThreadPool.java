@@ -1,21 +1,19 @@
 package org.alex.service;
 
-import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 
 public class MyFixedThreadPool {
 
-    private static volatile boolean isShuttingDown;
+    private volatile boolean isShuttingDown;
 
-    private final Queue<Runnable> tasks = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
 
 
     public MyFixedThreadPool(int threadsCount) {
         for (int i = 0; i < threadsCount; i++) {
-            new Thread(new TaskExecutor(tasks), "my-pool-" + (i + 1)).start();
+            new Thread(new TaskExecutor(), "my-pool-" + (i + 1)).start();
         }
     }
 
@@ -23,6 +21,7 @@ public class MyFixedThreadPool {
         if (isShuttingDown) {
             throw new RejectedExecutionException("Shutting down");
         }
+
         synchronized (tasks) {
             tasks.add(task);
             tasks.notify();
@@ -30,56 +29,38 @@ public class MyFixedThreadPool {
     }
 
     public void shutdown() {
-        isShuttingDown = true;
+        synchronized (tasks) {
+            isShuttingDown = true;
+            tasks.notifyAll();
+        }
     }
-
 
     public boolean isShutdown() {
         return isShuttingDown;
     }
 
-
-    static class TaskExecutor implements Runnable {
-
-        private final Queue<Runnable> tasks;
-
-        public TaskExecutor(Queue<Runnable> tasks) {
-            this.tasks = tasks;
-        }
+    class TaskExecutor implements Runnable {
 
         @Override
         public void run() {
-            synchronized (tasks) {
-                while (true) {
-                    if (!isShuttingDown && !tasks.isEmpty()) {
-                        Runnable task = tasks.poll();
-                        if (task != null) {
-                            task.run();
-                        }
-                    }
-                    if (!isShuttingDown && tasks.isEmpty()) {
+
+            while (!isShuttingDown || !tasks.isEmpty()) {
+                if (tasks.isEmpty()) {
+                    synchronized (tasks) {
                         try {
                             tasks.wait();
                         } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                        Runnable task = tasks.poll();
-                        if(task != null) {
-                        task.run();
+                            throw new RuntimeException("Thread interrupted ", e);
                         }
                     }
-                    if (isShuttingDown && !tasks.isEmpty()) {
-                        Runnable task = tasks.poll();
-                        if (task != null) {
-                            task.run();
-                        }
-                    }
-                    if (isShuttingDown && tasks.isEmpty()) {
-                        tasks.notifyAll();
-                        break;
-                    }
+                }
+                Runnable task = tasks.poll();
+                if (task != null) {
+                    task.run();
                 }
             }
         }
+
     }
+
 }
